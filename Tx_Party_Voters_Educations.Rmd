@@ -1,0 +1,180 @@
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(dplyr)
+library(gt)
+library(stringr)
+```
+
+```{r creating_dataset}
+#I chose to analyze data from my home state Texas. I loaded in all the data
+#available from Texas, which consisted of 4 districts, 3 of them having multiple
+#.csvs because they were polled twice.to load them in I cloned the Upshot GitHub
+#repository containing all the .csvs, extracted all the one from Texas I wanted
+#and deleted the rest. I read in all 7 .csv files and my intention is to combine
+#them all into one dataset. Thus, to tell which rows associate with each
+#district, I mutated, adding a column that gives the district and where this
+#district is in Texas, which is very useful for my later analysis.
+
+tx07_1 <- read_csv("https://raw.githubusercontent.com/TheUpshot/2018-live-poll-results/master/data/elections-poll-tx07-1.csv", col_types = cols(
+                .default = col_character(),
+                turnout_scale = col_double(),
+                turnout_score = col_double(),
+                w_LV = col_double(),
+                w_RV = col_double(),
+                final_weight = col_double(),
+                timestamp = col_datetime(format = "")))%>% mutate(district="Houston, Harris County (7th District)")
+
+tx07_3 <- read_csv("https://raw.githubusercontent.com/TheUpshot/2018-live-poll-results/master/data/elections-poll-tx07-3.csv", col_types = cols(
+                .default = col_character(),
+                turnout_scale = col_double(),
+                turnout_score = col_double(),
+                w_LV = col_double(),
+                w_RV = col_double(),
+                final_weight = col_double(),
+                timestamp = col_datetime(format = "")))%>% mutate(district="Houston, Harris County (7th District)")
+
+tx23_1 <- read_csv("https://raw.githubusercontent.com/TheUpshot/2018-live-poll-results/master/data/elections-poll-tx23-1.csv", col_types = cols(
+                .default = col_character(),
+                turnout_scale = col_double(),
+                turnout_score = col_double(),
+                w_LV = col_double(),
+                w_RV = col_double(),
+                final_weight = col_double(),
+                timestamp = col_datetime(format = ""))) %>% mutate(district="Southwest Texas (23rd District)")
+
+tx23_3 <- read_csv("https://raw.githubusercontent.com/TheUpshot/2018-live-poll-results/master/data/elections-poll-tx23-3.csv", col_types = cols(
+                .default = col_character(),
+                turnout_scale = col_double(),
+                turnout_score = col_double(),
+                w_LV = col_double(),
+                w_RV = col_double(),
+                final_weight = col_double(),
+                timestamp = col_datetime(format = "")))%>%mutate(district ="Southwest Texas (23rd District)")
+
+tx31_1 <- read_csv("https://raw.githubusercontent.com/TheUpshot/2018-live-poll-results/master/data/elections-poll-tx31-1.csv", col_types = cols(
+                .default = col_character(),
+                turnout_scale = col_double(),
+                turnout_score = col_double(),
+                w_LV = col_double(),
+                w_RV = col_double(),
+                final_weight = col_double(),
+                timestamp = col_datetime(format = "")))%>%mutate(district ="Central Texas (31st District)")
+
+tx32_1 <- read_csv("https://raw.githubusercontent.com/TheUpshot/2018-live-poll-results/master/data/elections-poll-tx32-1.csv", col_types = cols(
+                .default = col_character(),
+                turnout_scale = col_double(),
+                turnout_score = col_double(),
+                w_LV = col_double(),
+                w_RV = col_double(),
+                final_weight = col_double(),
+                timestamp = col_datetime(format = "")))%>%mutate(district ="Dallas/Plano (32nd District)")
+
+tx32_3 <- read_csv("https://raw.githubusercontent.com/TheUpshot/2018-live-poll-results/master/data/elections-poll-tx32-3.csv", col_types = cols(
+                .default = col_character(),
+                turnout_scale = col_double(),
+                turnout_score = col_double(),
+                w_LV = col_double(),
+                w_RV = col_double(),
+                final_weight = col_double(),
+                timestamp = col_datetime(format = "")))%>%mutate(district="Dallas/Plano (32nd District)")
+
+#creates one big data set, stacking all the different datasets on top of each
+#other.I used bind_rows instead of union since not all the data sets have the
+#same/ same amount of columns making it not possible to use union.
+
+texas<-bind_rows(tx07_1, tx07_3, tx23_1, tx23_3, tx31_1, tx32_1, tx32_3)
+
+
+
+```
+
+```{r data_manipulation}
+
+#I wanted to see do different political parties attract people with different
+#educations across the Texas districts polled. I believed a larger proportion of
+#the Democratic vote would be more educated and this is how I went about making
+#this graph.I used educ4 instead of educ as my education variable because it has
+#less categories and looking through the data, the amount of data that falls
+#into the the fifth category in educ is very small.
+
+texas_education<- texas%>%
+  
+#I only want to compare Democrat and Republican Responses.
+  
+  filter(educ4 != "[DO NOT READ] Don't know/Refused", response %in% c("Dem", "Rep"))%>%
+  
+#leveling for the graph later on. Without this mutate, the education levels are
+#not ordered in any fashion such as least to greatest
+  
+   mutate(Education = fct_relevel(educ4, 
+                                  c("High School Grad. or Less",
+                                  "Some College Educ.",
+                                  "4-year College Grad.",
+                                  "Postgraduate Degree"))) %>%
+  
+# this mutate is also for readability and presentation in the graph as I would
+# rather have Democrat and Republican over the abbreviations.
+  
+  mutate(response = case_when(response == "Dem"~"Democrat",
+                            response == "Rep"~"Republican"))%>%
+  
+#this grouping arrangement always me to look at the proportions from each
+#district by each response by each education
+  
+  group_by(district, response, Education)%>%
+  
+#collects all of the responses per education for each district
+  summarise(total= n()) %>%
+  
+ #I get my frequencies this way because I want the percantages for each
+ #education within a response to add up to 100%.
+  
+  mutate(frequency = total/sum(total),
+         pct = round((frequency*100),0))
+  
+```
+
+```{r graphic_creation, fig.width= 10}
+  
+
+ 
+texas_education%>%
+  
+#creating the plot. I needed the group argument to get the correct order I made
+#from the fct_relevel above and the fill adds color
+  
+ggplot(aes(x= response, y= pct, group=Education, fill = Education)) + 
+  
+#for presentability and readability use dodge2 so that the columns are not stacked
+  
+  geom_col(position = "dodge2") +
+  
+#I want each district to have a separate graph because the districts cover
+#different areas like urban vs.rural and I wanted to see if my assumptions held
+#true across different parts of the state.
+  
+  facet_wrap(~district)+ 
+  
+#this is for readability, I flipped the axis to allow for better comparison and
+#reading of the bar percentages
+  
+  coord_flip()+ 
+
+# creation of informative titles, labels, and caption to give credit to source of data  
+  
+labs(title = "Education Makeup of Responses by Party in 4 Polled Texas Congressional Districts",
+     subtitle= "Do Democratic or Republican Responses Consist of More Educated Respondents Across Texas?",
+     x= "Polling Response",
+     y="Percentage", 
+     caption = "Source: New York Times Upshot/Siena College 2018 live polls")
+  
+
+ 
+  
+```
+
+
+
